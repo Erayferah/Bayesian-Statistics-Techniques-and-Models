@@ -1,0 +1,158 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Lesson 3: Monte Carlo estimation
+Lesson 3.1
+Simulation and CLT
+Before we learn how to simulate from complicated posterior distributions, let’s review some of the basics of Monte Carlo estimation. Monte Carlo estimation refers to simulating hypothetical draws from a probability distribution in order to calculate important quantities. These quantities might include the mean, the variance, the probability of some event, or quantiles of the distribution. All of these calculations involve integration, which except for the simplest distributions, can be very difficult or impossible.
+
+Suppose we have a random variable θ that follows a Gamma(a,b distribution. Let’s say a=2 and b=1/3, where b is the rate parameter. To calculate the mean of this distribution, we would need to compute the following integral
+E(θ)=∫∞0θf(θ)dθ=∫∞0θbaΓ(a)θa−1e−bθdθ.
+It is possible to compute this integral, and the answer is a/b (6 in this case). However, we could verify this answer through Monte Carlo estimation. To do so, we would simulate a large number of draws (call them θ∗i for i=1,...,m) from this gamma distribution and calculate their sample mean.
+
+Why can we do this? Recall from the previous course that if we have a random sample from a distribution, the average of those samples converges in probability to the true mean of that distribution by the Law of Large Numbers. Furthermore, by the Central Limit Theorem (CLT), this sample mean θ¯∗=1m∑mi=1θ∗i approximately follows a normal distribution with mean E(θ) and variance Var(θ)/m. The theoretical variance of θ is the following integral:
+Var(θ)=∫∞0(θ−E(θ))2f(θ)dθ.
+Just like we did with the mean, we could approximate this variance with the sample variance 1m∑mi=1(θ∗i−θ¯∗)2.
+
+Calculating probabilities
+This method can be used to calculate many different integrals. Say h(θ) is any function and we want to calculate ∫h(θ)p(θ)dθ. This integral is precisely what is meant by E(h(θ)), so we can conveniently approximate it by taking the sample mean of h(θ∗i). That is, we apply the function h to each simulated sample from the distribution, and take the average of all the results.
+
+One extremely useful example of an h function is is the indicator IA(θ) where A is some logical condition about the value of θ. To demonstrate, suppose h(θ)=I[θ<5](θ), which will give a 1 if θ<5 and return a 0 otherwise. What is E(h(θ))? This is the integral
+∫∞0I[θ<5](θ)p(θ)dθ=∫501⋅p(θ)dθ+∫∞50⋅p(θ)dθ=P(θ<5).
+So what does this mean? It means we can approximate the probability that θ<5 by drawing many samples θ∗i, and approximating this integral with 1m∑mi=1Iθ∗<5(θ∗i). This expression is simply counting how many of those samples come out to be less than 5, and dividing by the total number of simulated samples. That’s convenient!
+
+Likewise, we can approximate quantiles of a distribution. If we are looking for the value z such that P(θ<z)=0.9, we simply arrange the samples θ∗i in ascending order and find the smallest drawn value that is greater than 90% of the others.
+
+Lesson 3.2
+Monte Carlo error
+How good is an approximation by Monte Carlo sampling? Again we can turn to the CLT, which tells us that the variance of our estimate is controlled in part by m. For a better estimate, we want larger m.
+
+For example, if we seek E(θ), then the sample mean θ¯∗ approximately follows a normal distribution with mean E(θ) and variance Var(θ)/m. The variance tells us how far our estimate might be from the true value. One way to approximate Var(θ) is to replace it with the sample variance. The standard deviation of our Monte Carlo estimate is the square root of that, or the sample standard deviation divided by m−−√. If m is large, it is reasonable to assume that the true value will likely be within about two standard deviations of your Monte Carlo estimate.
+
+Marginalization
+We can also obtain Monte Carlo samples from hierarchical models. As a simple example, let’s consider a binomial random variable where y∣ϕ∼Bin(10,ϕ), and further suppose ϕ is random (as if it had a prior) and is distributed beta ϕ∼Beta(2,2). Given any hierarchical model, we can always write the joint distribution of y and ϕ as p(y,ϕ)=p(y∣ϕ)p(ϕ) using the chain rule of probability. To simulate from this joint distribution, repeat these steps for a large number m:
+
+Simulate ϕ∗i from its Beta(2,2) distribution.
+Given the drawn ϕ∗i, simulate y∗i from Bin(10,ϕ∗i).
+This will produce m independent pairs of (y∗,ϕ∗)i drawn from their joint distribution. One major advantage of Monte Carlo simulation is that marginalizing is easy. Calculating the marginal distribution of y, p(y)=∫10p(y,ϕ)dϕ, might be challenging. But if we have draws from the joint distribution, we can just discard the ϕ∗i draws and use the y∗i as samples from their marginal distribution. This is also called the prior predictive distribution introduced in the previous course.
+
+In the next segment, we will demonstrate some of these principles. Remember, we do not yet know how to sample from the complicated posterior distributions introduced in the previous lesson. But once we learn that, we will be able to use the principles from this lesson to make approximate inferences from those posterior distributions.
+
+Lesson 3.3
+Example from Lesson 3.1
+Monte Carlo simulation from the most common distributions is very straightforward in R.
+
+Let’s start with the example from the previous segment, where θ∼Gamma(a,b) with a=2,b=1/3. This could represent the posterior distribution of θ if our data came from a Poisson distribution with mean θ and we had used a conjugate gamma prior. Let’s start with m=100.
+```{r}
+set.seed(32) # Initializes the random number generator so we can replicate these results. To get different random numbers, change the seed.
+m = 10000
+a = 5.0
+b = 3.0 + 5.0
+```
+To simulate m independent samples, use the rgamma function.
+```{r}
+theta = rbeta(n=m, shape1 = a, shape2 =b)
+```
+We can plot a histogram of the generated data, and compare that to the true density.
+```{r}
+hist(theta, freq=FALSE)
+curve(dgamma(x=x, shape=a, rate=b), col="blue", add=TRUE)
+```
+
+To find our Monte Carlo approximation to E(θ), let’s take the average of our sample (and compare it with the truth).
+```{r}
+sum(theta) / m # sample mean
+```
+## [1] 5.514068
+```{r}
+round(mean(theta), 1) # sample mean
+```
+## [1] 5.514068
+```{r}
+a / b # true expected value
+```
+## [1] 6
+Not bad, but we can do better if we increase m to say, 10,000.
+```{r}
+m = 1e4
+theta = rgamma(n=m, shape=a, rate=b)
+mean(theta)
+```
+## [1] 6.023273
+How about the variance of θ?
+```{r}
+var(theta) # sample variance
+```
+## [1] 18.04318
+```{r}
+a / b^2 # true variance of Gamma(a,b)
+```
+## [1] 18
+We can also approximate the probability that θ<5.
+```{r}
+ind = theta > 1.0 # set of indicators, TRUE if theta_i < 5
+round(mean(ind),2) # automatically converts FALSE/TRUE to 0/1
+```
+## [1] 0.497
+```{r}
+pgamma(q=5.0, shape=a, rate=b) # true value of Pr( theta < 5 )
+## [1] 0.4963317
+```
+What is the 0.9 quantile (90th percentile) of θ? We can use the quantile function which will order the samples for us and find the appropriate sample quantile.
+```{r}
+#qnorm(x=pnorm(100000,mean=0,sd=1), probs=0.3)
+round(qnorm(0.30, mean=0, sd=1), 2)
+
+```
+##      90% 
+## 11.74338
+```{r}
+qgamma(p=0.9, shape=a, rate=b) # true value of 0.9 quantile
+```
+## [1] 11.66916
+Lesson 3.4
+Monte Carlo error
+We can use the CLT to approximate how accurate our Monte Carlo estimates are. For example, if we seek E(θ), then the sample mean θ¯∗ approximately follows a normal distribution with mean E(θ) and variance Var(θ)/m. We will use the sample standard deviation divided by the square root of m to approximate the Monte Carlo standard deviation.
+
+```{r}
+se = sd(theta) / sqrt(m)
+2.0 * se # we are reasonably confident that the Monte Carlo estimate is no more than this far from the truth
+```
+## [1] 0.08495454
+These numbers give us a reasonable range for the quantity we are estimating with Monte Carlo. The same applies for other Monte Carlo estimates, like the probability that θ<5.
+
+```{r}
+ind = theta < 5.0
+se = sd(ind) / sqrt(m)
+2.0 * se # we are reasonably confident that the Monte Carlo estimate is no more than this far from the truth
+```
+## [1] 0.01000032
+Marginalization
+Let’s also do the second example of simulating a hierarchical model. In our example from the previous segment, we had a binomial random variable where y∣ϕ∼iidBin(10,ϕ), and ϕ∼Beta(2,2). To simulate from this joint distribution, repeat these steps for a large number m:
+
+Simulate ϕi from its Beta(2,2) distribution.
+Given the drawn ϕi, simulate yi from Bin(10,ϕi).
+```{r}
+m = 10e4
+
+y = numeric(m) # create the vectors we will fill in with simulations
+phi = numeric(m)
+
+for (i in 1:m) {
+  phi[i] = rbeta(n=1, shape1=2.0, shape2=2.0)
+  y[i] = rbinom(n=1, size=10, prob=phi[i])
+}
+# which is equivalent to the following 'vectorized' code
+phi = rbeta(n=m, shape1=2.0, shape2=2.0)
+y = rbinom(n=m, size=10, prob=phi)
+```
+If we are interested only in the marginal distribution of y, we can just ignore the draws for ϕ and treat the draws of y as a sample from its marginal distribution.
+```{r}
+mean(y)
+```
+## [1] 5.00008
+```{r}
+plot(prop.table(table(y)), ylab="P(y)", main="Marginal distribution of y")
+```
