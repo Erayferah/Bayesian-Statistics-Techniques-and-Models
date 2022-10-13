@@ -30,3 +30,26 @@ mod_string = " model {
 } "
 
 data_jags = as.list(Anscombe)
+
+params = c("b", "sig")
+
+inits = function() {
+  inits = list("b"=rnorm(3,0.0,100.0), "prec"=rgamma(1,1.0,1.0))
+}
+
+mod = jags.model(textConnection(mod_string), data=data_jags, inits=inits, n.chains=3)
+update(mod, 1000) # burn-in
+
+mod_sim = coda.samples(model=mod,
+                       variable.names=params,
+                       n.iter=5000)
+
+mod_csim = do.call(rbind, mod_sim) # combine multiple chains
+
+plot(mod_sim)
+gelman.diag(mod_sim)
+autocorr.diag(mod_sim)
+autocorr.plot(mod_sim)
+
+plot(lfit4)
+
